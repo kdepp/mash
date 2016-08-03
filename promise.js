@@ -32,27 +32,45 @@ function id(x) {
   return x;
 }
 
-function handle(value, resolve, reject) {
-  var then = getThen(value);
+function makeOnce() {
+  var called = 0;
 
-  if (then) {
-    //console.log('found then', then);
-    try {
-      return then(function (val) {
-        return handle(val, resolve, reject);
-      }, function (err) {
-        return handle(err, reject, reject);
-      });
-    } catch (e) {
-      reject(e);
+  return function once(fn, context) {
+    return function () {
+      if (called ++ > 0)  return;
+      return fn.apply(context, [].slice.apply(arguments));
+    };
+  };
+}
+
+function handle(value, resolve, reject) {
+  var once = makeOnce();
+
+  try {
+    var then = getThen(value);
+
+    if (then) {
+      return then(
+        once(function (val) {
+          return handle(val, resolve, reject);
+        }),
+        once(function (err) {
+          return reject(err);
+        })
+      );
+    } else {
+      return resolve(value);
     }
-  } else {
-    return resolve(value);
+  } catch (e) {
+    once(function () {
+      reject(e, true);
+    })();
   }
 }
 
 function safeCall(self, fn, param) {
   var ret = fn(param);
+
   if (self === ret) {
     throw new TypeError('Promise should not resolve or reject with itself');
   }
@@ -75,7 +93,7 @@ function Promise(fn) {
           try {
             tuple.onResolve(self._value);
           } catch (e) {
-            tuple.onReject(e, true);
+            reject(e);
           }
         }
         break;
@@ -85,7 +103,7 @@ function Promise(fn) {
           try {
             tuple.onReject(self._error);
           } catch (e) {
-            tuple.onReject(e, true);
+            reject(e);
           }
         }
         break;
@@ -142,7 +160,6 @@ Promise.prototype.then = function (onResolve, onReject) {
             resolve(self._value);
           }
         } catch (e) {
-          console.log('!!!!!!!! a');
           reject(e);
         }
         break;
@@ -155,7 +172,6 @@ Promise.prototype.then = function (onResolve, onReject) {
             reject(self._error);
           }
         } catch (e) {
-          console.log('!!!!!!!! b');
           reject(e);
         }
         break;
@@ -172,15 +188,14 @@ Promise.prototype.then = function (onResolve, onReject) {
                 } else {
                   resolve(val);
                 }
-              }, function (err) {
-                if (isFunction(onReject)) {
+              }, function (err, bypass) {
+                if (!bypass && isFunction(onReject)) {
                   handle(safeCall(that, onReject, err), resolve, reject);
                 } else {
                   reject(err);
                 }
               });
             } catch (e) {
-              console.log('!!!!!!!! c', e);
               reject(e);
             }
           },
@@ -192,7 +207,6 @@ Promise.prototype.then = function (onResolve, onReject) {
                 reject(err);
               }
             } catch (e) {
-              console.log('!!!!!!!! d');
               reject(e);
             }
           }
