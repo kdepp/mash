@@ -10,9 +10,26 @@ function isFunction(fn) {
   return typeof fn === 'function';
 }
 
+function isThenHolder(value) {
+  var ret;
+
+  switch (typeof value) {
+    case 'object':
+      ret = !!value;
+      break;
+    case 'function':
+      ret = true;
+      break;
+    default:
+      ret = false;
+  }
+
+  return ret;
+}
+
 function getThen(value) {
   var then = value && value.then;
-  return typeof then !== 'function'
+  return !isThenHolder(value) || (typeof then !== 'function')
           ? null
           : function () {
             var args = [].slice.apply(arguments);
@@ -52,18 +69,37 @@ function handle(value, resolve, reject) {
     if (then) {
       return then(
         once(function (val) {
-          return handle(val, resolve, reject);
+          try {
+            return handle(val, resolve, reject);
+          } catch (e) {
+            once(function () {
+              reject(e, true);
+            })();
+          }
         }),
         once(function (err) {
-          return reject(err);
+          try {
+            return reject(err);
+          } catch (e) {
+            once(function () {
+              reject(e, true);
+            })();
+          }
         })
       );
     } else {
-      return resolve(value);
+      try {
+        return resolve(value);
+      } catch (e) {
+        once(function () {
+          reject(e, true);
+        })();
+      }
     }
   } catch (e) {
+    //console.log('error in others', e.stack, reject.toString());
     once(function () {
-      reject(e, true);
+      reject(e);
     })();
   }
 }
@@ -194,7 +230,7 @@ Promise.prototype.then = function (onResolve, onReject) {
                 } else {
                   reject(err);
                 }
-              });
+              }, true);
             } catch (e) {
               reject(e);
             }
