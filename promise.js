@@ -35,6 +35,14 @@ function handle(value, resolve, reject) {
   }
 }
 
+function safeCall(self, fn, param) {
+  var ret = fn(param);
+  if (self === ret) {
+    throw new TypeError('Promise should not resolve or reject with itself');
+  }
+  return ret;
+}
+
 function Promise(fn) {
   this._then_list = [];
   this._state = STATE.PENDING;
@@ -71,6 +79,10 @@ function Promise(fn) {
     }
   };
   var resolve = function (val) {
+    if (val == self) {
+      throw new TypeError('Promise should not resolve with itself as the value');
+    }
+
     nextTick(function () {
       if (self._state !== STATE.PENDING)  return;
       self._state = STATE.FULLFILLED;
@@ -79,6 +91,10 @@ function Promise(fn) {
     });
   };
   var reject = function (error) {
+    if (error == self) {
+      throw new TypeError('Promise should not reject with itself as the error');
+    }
+
     nextTick(function () {
       if (self._state !== STATE.PENDING)  return;
       self._state = STATE.REJECTED;
@@ -100,12 +116,12 @@ function Promise(fn) {
 Promise.prototype.then = function (onResolve, onReject) {
   var self = this;
 
-  return new Promise(function (resolve, reject) {
+  var that = new Promise(function (resolve, reject) {
     switch (self._state) {
       case STATE.FULLFILLED:
         try {
           if (isFunction(onResolve)) {
-            handle(onResolve(self._value), resolve, reject);
+            handle(safeCall(that, onResolve, self._value), resolve, reject);
           } else {
             resolve(self._value);
           }
@@ -117,7 +133,7 @@ Promise.prototype.then = function (onResolve, onReject) {
       case STATE.REJECTED:
         try {
           if (isFunction(onReject)) {
-            handle(onReject(self._error), resolve, reject);
+            handle(safeCall(that, onReject, self._error), resolve, reject);
           } else {
             reject(self._error);
           }
@@ -133,13 +149,13 @@ Promise.prototype.then = function (onResolve, onReject) {
           onResolve: function (val) {
             handle(val, function (val) {
               if (isFunction(onResolve)) {
-                handle(onResolve(val), resolve, reject);
+                handle(safeCall(that, onResolve, val), resolve, reject);
               } else {
                 resolve(val);
               }
             }, function (err) {
               if (isFunction(onReject)) {
-                handle(onReject(err), resolve, reject);
+                handle(safeCall(that, onReject, err), resolve, reject);
               } else {
                 reject(err);
               }
@@ -147,7 +163,7 @@ Promise.prototype.then = function (onResolve, onReject) {
           },
           onReject:  function (err, bypass) {
             if (!bypass && isFunction(onReject)) {
-              handle(onReject(err), resolve, reject);
+              handle(safeCall(that, onReject, err), resolve, reject);
             } else {
               reject(err);
             }
@@ -155,6 +171,8 @@ Promise.prototype.then = function (onResolve, onReject) {
         });
     }
   });
+
+  return that;
 };
 
 Promise.resolve = function (val) {
