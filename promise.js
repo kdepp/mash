@@ -10,8 +10,14 @@ function isFunction(fn) {
   return typeof fn === 'function';
 }
 
-function isThenable(fn) {
-  return fn && typeof fn.then === 'function';
+function getThen(value) {
+  var then = value && value.then;
+  return typeof then !== 'function'
+          ? null
+          : function () {
+            var args = [].slice.apply(arguments);
+            return then.apply(value, args);
+          };
 }
 
 function nextTick(fn) {
@@ -27,9 +33,11 @@ function id(x) {
 }
 
 function handle(value, resolve, reject) {
-  debug('in handle %s', value);
-  if (isThenable(value)) {
-    return value.then(resolve, reject);
+  //console.log('in handle, ', value);
+  var then = getThen(value);
+
+  if (then) {
+    return then(resolve, reject);
   } else {
     return resolve(value);
   }
@@ -51,7 +59,7 @@ function Promise(fn) {
 
   var self = this;
   var trigger = function () {
-    debug('in trigger, state: %s, value: %s, error: %s', self._state, self._value, self._error);
+    debug('in trigger, state: %s, value: %s, error: %s, %s', self._state, self._value, self._error, (self._error || {}).stack);
     switch (self._state) {
       case STATE.FULLFILLED:
         for (var i = 0, l = self._then_list.length; i < l; i ++) {
