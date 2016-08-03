@@ -33,11 +33,19 @@ function id(x) {
 }
 
 function handle(value, resolve, reject) {
-  //console.log('in handle, ', value);
   var then = getThen(value);
 
   if (then) {
-    return then(resolve, reject);
+    //console.log('found then', then);
+    try {
+      return then(function (val) {
+        return handle(val, resolve, reject);
+      }, function (err) {
+        return handle(err, reject, reject);
+      });
+    } catch (e) {
+      reject(e);
+    }
   } else {
     return resolve(value);
   }
@@ -134,6 +142,7 @@ Promise.prototype.then = function (onResolve, onReject) {
             resolve(self._value);
           }
         } catch (e) {
+          console.log('!!!!!!!! a');
           reject(e);
         }
         break;
@@ -146,6 +155,7 @@ Promise.prototype.then = function (onResolve, onReject) {
             reject(self._error);
           }
         } catch (e) {
+          console.log('!!!!!!!! b');
           reject(e);
         }
         break;
@@ -155,25 +165,35 @@ Promise.prototype.then = function (onResolve, onReject) {
         debug('then_list push');
         self._then_list.push({
           onResolve: function (val) {
-            handle(val, function (val) {
-              if (isFunction(onResolve)) {
-                handle(safeCall(that, onResolve, val), resolve, reject);
-              } else {
-                resolve(val);
-              }
-            }, function (err) {
-              if (isFunction(onReject)) {
+            try {
+              handle(val, function (val) {
+                if (isFunction(onResolve)) {
+                  handle(safeCall(that, onResolve, val), resolve, reject);
+                } else {
+                  resolve(val);
+                }
+              }, function (err) {
+                if (isFunction(onReject)) {
+                  handle(safeCall(that, onReject, err), resolve, reject);
+                } else {
+                  reject(err);
+                }
+              });
+            } catch (e) {
+              console.log('!!!!!!!! c', e);
+              reject(e);
+            }
+          },
+          onReject:  function (err, bypass) {
+            try {
+              if (!bypass && isFunction(onReject)) {
                 handle(safeCall(that, onReject, err), resolve, reject);
               } else {
                 reject(err);
               }
-            });
-          },
-          onReject:  function (err, bypass) {
-            if (!bypass && isFunction(onReject)) {
-              handle(safeCall(that, onReject, err), resolve, reject);
-            } else {
-              reject(err);
+            } catch (e) {
+              console.log('!!!!!!!! d');
+              reject(e);
             }
           }
         });
