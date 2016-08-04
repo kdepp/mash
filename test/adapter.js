@@ -1,4 +1,4 @@
-var Promise = require('../promise');
+var Promise = require('../mash');
 
 module.exports = {
   resolved: Promise.resolve,
@@ -8,8 +8,8 @@ module.exports = {
 
     return {
       promise: p,
-      resolve: p._resolve,
-      reject: p._reject
+      resolve: p._resolve || p._onFulfilled,
+      reject: p._reject || p._onRejected
     };
   }
 };

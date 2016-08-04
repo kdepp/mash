@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "mocha",
-    "test:spec": "promises-aplus-tests test/adapter.js --reporter spec --grep 2"
+    "test:spec": "promises-aplus-tests test/adapter.js"
   },
   "keywords": [
     "promise",
